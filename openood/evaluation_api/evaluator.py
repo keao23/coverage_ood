@@ -352,9 +352,9 @@ class Evaluator:
             ood_split].items():
 
             # we do not using near ood data (if use it, comment the following lines)
-            if (ood_split == 'near') and self.postprocessor.APS_mode:
-                metrics_list.append([0.99, 0.99, 0.99, 0.99, 0.99])
-                continue
+            # if (ood_split == 'near') and self.postprocessor.APS_mode:
+            #     metrics_list.append([0.99, 0.99, 0.99, 0.99, 0.99])
+            #     continue
 
             if self.scores['ood'][ood_split][dataset_name] is None:
                 print(f'Performing inference on {dataset_name} dataset...',
@@ -425,7 +425,7 @@ class Evaluator:
 
         for name in hyperparam_names:
             hyperparam_list.append(self.postprocessor.args_dict[name])
-
+        # 超参数排列组合
         hyperparam_combination = self.recursive_generator(
             hyperparam_list, count)
 
@@ -441,7 +441,7 @@ class Evaluator:
                 self.net, self.dataloader_dict['id']['val'], progress=False)
             ood_pred, ood_conf, ood_gt = self.postprocessor.inference(
                 self.net, self.dataloader_dict['ood']['val'], progress=False)
-
+            # gt(ground truth)=labels
             ood_gt = -1 * np.ones_like(ood_gt)  # hard set to -1 as ood
             pred = np.concatenate([id_pred, ood_pred])
             conf = np.concatenate([id_conf, ood_conf])
@@ -475,7 +475,7 @@ class Evaluator:
 
         self.postprocessor.hyperparam_search_done = True
 
-    def recursive_generator(self, list, n):
+    def recursive_generator(self, list, n):  # hyperparam_list, count
         if n == 1:
             results = []
             for x in list[0]:

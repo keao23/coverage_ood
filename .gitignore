@@ -8,6 +8,7 @@ data/
 results/
 checkpoints/
 ipynb_checkpoints/
+coverage_cache/
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

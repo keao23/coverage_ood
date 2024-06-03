@@ -1,6 +1,8 @@
 import os, sys
 
 ROOT_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..')
+print(f'root_dir', ROOT_DIR)
+# exit(0)
 sys.path.append(ROOT_DIR)
 import numpy as np
 import pandas as pd
@@ -67,10 +69,14 @@ parser.add_argument('--layer-names', default=['avgpool'], nargs="*", type=str, h
 args = parser.parse_args()
 
 root = args.root
+# print(args)
+# exit(0)
 
 seed = set_seed()
 # specify an implemented postprocessor
 # 'openmax', 'msp', 'temp_scaling', 'odin'...
+
+#postprocessor_name=nac
 postprocessor_name = args.postprocessor
 
 NUM_CLASSES = {'cifar10': 10, 'cifar100': 100, 'imagenet200': 200}
@@ -162,6 +168,7 @@ for i, subfolder in enumerate(sorted(glob(os.path.join(root, 's*')))):
     evaluator = Evaluator(
         net,
         id_name=args.id_data,  # the target ID dataset
+        # data_root=os.path.join(ROOT_DIR,'..', 'data'),
         data_root=os.path.join(ROOT_DIR, 'data'),
         config_root=config_root,
         preprocessor=None,  # default preprocessing
@@ -211,5 +218,3 @@ if args.save_csv:
     df.to_csv(os.path.join(saving_root, f'{postprocessor_name}.csv'))
 
 print(df)
-
-

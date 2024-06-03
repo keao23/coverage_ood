@@ -8,7 +8,7 @@ APS=$4
 if [[ "aps" = "$APS" ]]; then
   python scripts/eval_ood.py \
       --id-data cifar10 \
-      --root ./results/cifar10_resnet18_32x32_base_e100_lr0.1_default \
+      --root ../cifar10_resnet18_32x32_base_e100_lr0.1_default \
       --postprocessor nac \
       --batch-size $BATCH \
       --valid-num $SubNum \

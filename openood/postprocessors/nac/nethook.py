@@ -189,15 +189,17 @@ class InstrumentedModel(torch.nn.Module):
         if layername in self._old_forward:
             raise ValueError('Layer %s already hooked' % layername)
         self._hooked_layer[aka] = layername
+        # 保留原始模块中的前向传播方式
         self._old_forward[layername] = (layer, aka,
                                         layer.__dict__.get('forward', None))
         editor = self
         original_forward = layer.forward
-
+        # 定义新的前向传播方式，在调用原始的前向传播方法后，对输出进行后处理。
         def new_forward(self, *inputs, **kwargs):
             original_x = original_forward(*inputs, **kwargs)
             x = editor._postprocess_forward(original_x, aka)
             return x
+        # 替换模块的前向传播方法，以便在前向传播过程中进行拦截和后处理
         layer.forward = types.MethodType(new_forward, layer)
 
     def _unhook_layer(self, aka):
@@ -230,6 +232,7 @@ class InstrumentedModel(torch.nn.Module):
         # Retain output before edits, if desired.
         if aka in self._retained:
             if self._detach_retained[aka]:
+                #拦截并放入没有梯度的输出结果
                 self._retained[aka] = x.detach()
             else:
                 self._retained[aka] = x

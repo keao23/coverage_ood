@@ -29,11 +29,11 @@ from collections import defaultdict
 class TrainSubset(Dataset):
     def __init__(self, dataset, valid_ratio=None, valid_num=None,
                  balanced=True, rand_seed=1):
-        assert (valid_num is None) ^ (valid_ratio is None)
+        assert (valid_num is None) ^ (valid_ratio is None) # 异或操作符
         self.dataset = dataset
         self.cls_to_idxes = defaultdict(list)
         for idx, entry in enumerate(dataset.samples):
-            self.cls_to_idxes[entry[1]].append(idx)
+            self.cls_to_idxes[entry[1]].append(idx)  # key：标签id， value： 对应的图片id
 
         self.rand_seed = rand_seed
         self.get_sub_samples(valid_ratio, valid_num, balanced)
@@ -50,13 +50,13 @@ class TrainSubset(Dataset):
             elif valid_num is not None:
                 sub_num = int(valid_num / len(self.cls_to_idxes))
                 sub_num = min_len if sub_num > min_len else sub_num
-                print("number for each class:", sub_num)
+                print("number for each class:", sub_num) # sub_num=100 for cifar10
 
             for cls in self.cls_to_idxes:
                 inds = self.cls_to_idxes[cls]
                 np.random.RandomState(self.rand_seed).shuffle(inds)
                 self.valid_inds += inds[:sub_num]
-                self.remain_inds += inds[sub_num:]
+                self.remain_inds += inds[sub_num:] # split
         else:
             if valid_num is None:
                 valid_num = round(ratio * len(self.dataset.samples))

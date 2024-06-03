@@ -70,8 +70,9 @@ def kl_grad(b_state, outputs, temperature=1.0, retain_graph=False, **kwargs):
     logsoftmax = torch.nn.LogSoftmax(dim=-1).cuda()
     num_classes = outputs.shape[-1]
     targets = torch.ones_like(outputs) / num_classes
-
+    # 计算输出相对于均匀分布的KL散度损失，并计算损失对于b_state的梯度
     loss = (torch.sum(-targets * logsoftmax(outputs), dim=-1))
     layer_grad = torch.autograd.grad(loss.sum(), b_state, create_graph=False,
                                      retain_graph=retain_graph, **kwargs)[0]
+    #  create_graph 参数用于控制是否创建用于计算更高阶导数的计算图，而 retain_graph 参数用于控制是否保留计算图以允许多次调用 backward() 函数。
     return layer_grad

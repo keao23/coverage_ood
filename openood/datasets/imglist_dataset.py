@@ -96,7 +96,7 @@ class ImglistDataset(BaseDataset):
                     image = pil_loader(path)
                 sample['data'] = self.transform_image(image)
                 # sample['data_aux'] = self.transform_aux_image(image)
-            sample['label'] = int(extra_str)
+            sample['label'] = int(extra_str)  # extra_str = label
             extras = ast.literal_eval(extra_str)
             try:
                 for key, value in extras.items():
@@ -105,7 +105,7 @@ class ImglistDataset(BaseDataset):
                 sample['label'] = 0
             except AttributeError:
                 sample['label'] = int(extra_str)
-            # Generate Soft Label
+            # Generate Soft Label 软标签用于表示样本属于多个类别的概率分布
             soft_label = torch.Tensor(self.num_classes)
             if sample['label'] < 0:
                 soft_label.fill_(1.0 / self.num_classes)

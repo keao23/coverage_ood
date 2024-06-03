@@ -49,7 +49,7 @@ class NACPostprocessor(BasePostprocessor):
         for ln, ln_hypers in self.layer_kwargs.items():
             ln_prefix = [f"{k}_{v}" for k, v in ln_hypers.items() if k != 'O']
             f_name += f"_{self.ln_to_aka[ln]}_" + "_".join(ln_prefix)
-        f_name += f"_states.pkl"
+        f_name += f"_states.pkl" # 'cifar10_avgpool_M_50_sig_alpha_100_method_sigmoid(o*g_kl)_layer3_M_50_sig_alpha_1000_method_sigmoid(o*g_kl)_layer2_M_50_sig_alpha_0.001_method_sigmoid(o*g_kl)_layer1_M_50_sig_alpha_0.001_method_sigmoid(o*g_kl)_states.pkl'
         if reload and os.path.isfile(os.path.join(self.save_dir, f_name)):
             self.load(f_name, unpack, params=self.layer_kwargs)
         else:
@@ -79,14 +79,15 @@ class NACPostprocessor(BasePostprocessor):
             self.APS_mode = aps
             self.build_nac_flag = not aps
         self.use_cache = use_cache
+        # self.layer_names={avgpool layer3 2 1}   layer_kwargs={'avgpool': M:50 O:50 .......}
         self.layer_kwargs = {ln: self.layer_kwargs[ln] for ln in self.layer_kwargs if ln in self.layer_names}
         self.args_dict = {f"{ln}_{k}": v for ln in self.layer_kwargs for k, v in self.args_dict[ln].items()}
-
+        # self.aka_to_ln = {avgpool:'avgpool'}
         self.aka_to_ln, self.layer_names = get_intr_name(self.layer_names, self.model_name, net)
         self.ln_to_aka = {v: k for k, v in self.aka_to_ln.items()}
         self.layer_kwargs = {self.aka_to_ln[aka]: v for aka, v in self.layer_kwargs.items()}
         print(f"Setup NAC Postprocessor (valid_num:{self.valid_num}, layers:{self.layer_names})......")
-
+        # return function : avg_pooling
         self.spatial_func = StatePooling(self.model_name)
         if self.use_cache:
             self.nac_dataloader = id_loader_dict['main_train']
@@ -118,9 +119,9 @@ class NACPostprocessor(BasePostprocessor):
                                                                    self.spatial_func,
                                                                    progress=progress)
         return preds, confs, labels
+        # confs = scores /confidences?
 
-
-
+    # 将hyperparam赋值给layer_kwargs
     def set_hyperparam(self, hyperparam: list):
         assert (len(hyperparam) / 4) == len(self.layer_kwargs)
         print("##" * 30)

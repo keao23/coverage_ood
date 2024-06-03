@@ -29,9 +29,11 @@ def make_layer_size_dict(model, layer_names, input_shape=(3, 3, 224, 224),
     with nethook.InstrumentedModel(model) as instr:
         instr.retain_layers(layer_names, detach=True)
         with torch.no_grad():
+            #模型输出被拦截放入 self._retained[aka]
             _ = model(input)
             for ln in layer_names:
                 b_state = instr.retained_layer(ln)
+                # 池化后输出的通道数
                 layer_size_dict[ln] = transform(b_state).shape[1]
     return layer_size_dict
 
@@ -123,7 +125,7 @@ class KMNC(Coverage):
         for ln, state in b_layer_state.items():
             scores += self.estimator_dict[ln].ood_test(state, **kwargs) / layer_num
         return scores.cpu()
-
+        
     def assess(self, model, data_loader, spatial_func=None, **kwargs):
         model.eval()
         if spatial_func is None:
@@ -169,35 +171,39 @@ class KMNC(Coverage):
         if spatial_func is None:
             spatial_func = lambda s, m: s
         transform = lambda s, m: spatial_func(s, m).detach() if len(s.shape) > 2 else s.detach()
+        # layer中method的实现 e.g. avgpool: sigmoid
         state_funcs = {ln: get_state_func(transform=transform, **self.hyper_dict[ln]) for ln in self.layer_names}
 
         preds, labels, scores, flags = [], [], [], []
         with nethook.InstrumentedModel(model) as instr:
             instr.retain_layers(self.layer_names, detach=False)
             for i, data in enumerate(tqdm(data_loader, disable=not progress)):
+                # unpack = lambda b, device: (b['data'].to(device), b['label'].to(device))
                 x, y = self.unpack(data, self.device)
-                b_size = x.shape[0]
+                b_size = x.shape[0] # batch_size
                 p = model(x)
                 correct_num, b_flags = acc(p, y)
-                correct_flags = torch.ones_like(y).bool()  # we calculate cov for all samples
+                correct_flags = torch.ones_like(y).bool()  # we calculate cov for all samples 全True的张量
                 b_layer_state = {}
                 for j, ln in enumerate(self.layer_names):
                     # we use avg-pool for last layer except the vit.encoder.ln (which employs the first clss token)
                     pooling_method = "avg" if ln != "encoder.ln" else "first"
                     retain_graph = False if j == len(self.layer_names) - 1 else True
-                    b_state = instr.retained_layer(ln)
-                    b_kl_grad = kl_grad(b_state, p, retain_graph=retain_graph)
-                    b_state, b_kl_grad = transform(b_state, pooling_method), transform(b_kl_grad, pooling_method)
+                    b_state = instr.retained_layer(ln) # b_state是ln层的输出结果, p是最终的预测结果
+                    b_kl_grad = kl_grad(b_state, p, retain_graph=retain_graph) # 先求p和均匀分布的KL散度损失，然后对b_state求梯度
+                    b_state, b_kl_grad = transform(b_state, pooling_method), transform(b_kl_grad, pooling_method) # avg_pooling
                     # if i == 0:
                     #     print(b_kl_grad.shape, b_kl_grad.mean([2,3]).norm(dim=1,)[:3])
                     out = state_funcs[ln](b_state, correct_flags, b_kl_grad)
+                    # elif method == 'sigmoid(o*g_kl)_f':
+                        # state_func = lambda o, f, g_kl: sigmoid((o * g_kl)[f], sig_alpha=sig_alpha)  o * g_kl 的结果表明了模型输出每个元素对模型参数的影响程度。如果某个元素的输出值较大，并且对应位置的梯度也较大，那么说明这个参数在训练过程中对模型输出的影响较大，需要更大的梯度来进行更新。相反，如果某个元素的输出值较小，或者对应位置的梯度较小，那么说明这个参数在训练过程中对模型输出的影响较小，需要较小的梯度来进行更新。
                     b_layer_state[ln] = out
                 scores.append(self.single_ood_test(b_layer_state, b_size, **kwargs))
                 flags.append(b_flags.cpu())
                 preds.append(p.detach().argmax(1).cpu())
                 labels.append(y.cpu())
         scores = torch.cat(scores)
-        flags = torch.cat(flags)
+        flags = torch.cat(flags) # 预测与真实值的对比结果
         preds = torch.cat(preds).numpy().astype(int)
         labels = torch.cat(labels).numpy().astype(int)
         # print("ACC: ", flags.float().mean())
@@ -267,11 +273,11 @@ class KMNC(Coverage):
 def logspace(base=10, num=100):
     num = int(num / 2)
     x = np.linspace(1, np.sqrt(base), num=num)
-    x_l = np.emath.logn(base, x)
-    x_r = (1 - x_l)[::-1]
-    x = np.concatenate([x_l[:-1], x_r])
-    x[-1] += 1e-2
-    return torch.from_numpy(np.append(x, 1.2))
+    x_l = np.emath.logn(base, x) #对x应用以“base”为底的对数，得到[0-0.5],在x轴上是均匀变化的
+    x_r = (1 - x_l)[::-1] # 逆序，得到[0.5-1]
+    x = np.concatenate([x_l[:-1], x_r]) # 去掉0.5，最终
+    x[-1] += 1e-2  # 在最后一个值上添加一个小偏移量0.01，即1.01
+    return torch.from_numpy(np.append(x, 1.2))  # 再加一个1.2？总共num个值
 
 
 
@@ -314,6 +320,7 @@ class Estimator(object):
             self.t_act += b_act  # current activation times under each interval
 
     def get_score(self, method="avg"):
+        # n个神经元的激活分数分布
         t_score = torch.min(self.t_act / self.O, torch.ones_like(self.t_act))  # [num_t, num_n]
         coverage = (t_score.sum(dim=0)) / self.M  # [num_n]
         if method == "norm2":
@@ -324,7 +331,7 @@ class Estimator(object):
         t_cov = t_score.mean(dim=1).cpu().numpy()  # for simplicity
         self.n_coverage = t_score  # [num_t, num_n]
         return np.append(t_cov, 0), coverage
-
+    # state=b_layer_state[ln] = sigmoid(o*kl_grad)
     def ood_test(self, states, method="avg"):
         # thresh -> [num_t, num_n] -> [1, num_t, num_n] ->compare-> [num_data, num_t, num_n]
         # states -> [num_data, num_n] -> [num_data, 1, num_n] ->compare-> ...
@@ -333,7 +340,7 @@ class Estimator(object):
         scores = (b_act * self.n_coverage.unsqueeze(0)).sum(dim=1)  # [num_data, num_n]
         if method == "avg":
             scores = scores.mean(dim=1)
-        return scores
+        return scores 
 
     @property
     def states(self):
